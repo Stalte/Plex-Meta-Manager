@@ -1,4 +1,4 @@
-import argparse, os, re, sys, time, traceback
+import argparse, copy, os, re, sys, time, traceback
 from datetime import datetime
 
 try:
@@ -203,13 +203,13 @@ def update_libraries(config):
     for library in config.libraries:
         if library.skip_library:
             logger.info("")
-            logger.separator(f"Skipping {library.name} Library")
+            logger.separator(f"Skipping {library.log_name} Library")
             continue
         try:
             logger.add_library_handler(library.mapping_name)
             plexapi.server.TIMEOUT = library.timeout
             logger.info("")
-            logger.separator(f"{library.name} Library")
+            logger.separator(f"{library.log_name} Library")
 
             if config.library_first and library.library_operation and not config.test_mode and not collection_only:
                 library_operations(config, library)
@@ -247,7 +247,7 @@ def update_libraries(config):
                 for collection in library.get_all_collections():
                     logger.info(f"Collection {collection.title} Deleted")
                     library.query(collection.delete)
-            if not library.is_other and not library.is_music and (library.metadata_files or library.original_mapping_name in config.library_map) and not library_only:
+            if not library.is_other and not library.is_music and (library.metadata_files or library.original_mapping_name in (config.secondary_library_map if library.is_secondary else config.library_map)) and not library_only:
                 logger.info("")
                 logger.separator(f"Mapping {library.name} Library", space=False, border=False)
                 logger.info("")
@@ -292,6 +292,17 @@ def update_libraries(config):
     if config.playlist_files:
         logger.add_playlists_handler()
         playlist_status, playlist_stats = run_playlists(config)
+        if config.secondary_libraries:
+            # Run the same playlists against the secondary server's copies of the libraries
+            primary_map = config.library_map
+            config.library_map = config.secondary_library_map
+            try:
+                sec_status, sec_stats = run_playlists(config, secondary=True)
+            finally:
+                config.library_map = primary_map
+            playlist_status.update(sec_status)
+            for key, value in sec_stats.items():
+                playlist_stats[key] += value
         logger.remove_playlists_handler()
 
     has_run_again = False
@@ -316,7 +327,7 @@ def update_libraries(config):
                     logger.re_add_library_handler(library.mapping_name)
                     os.environ["PLEXAPI_PLEXAPI_TIMEOUT"] = str(library.timeout)
                     logger.info("")
-                    logger.separator(f"{library.name} Library Run Again")
+                    logger.separator(f"{library.log_name} Library Run Again")
                     logger.info("")
                     library.map_guids()
                     for builder in library.run_again:
@@ -372,7 +383,7 @@ def update_libraries(config):
 
     logger.separator("Summary")
     for library in config.libraries:
-        print_status(library.name, library.status)
+        print_status(library.log_name, library.status)
     if playlist_status:
         print_status("Playlists", playlist_status)
 
@@ -387,7 +398,7 @@ def update_libraries(config):
         stats["removed"] += library.stats["removed"]
         stats["radarr"] += library.stats["radarr"]
         stats["sonarr"] += library.stats["sonarr"]
-        stats["names"].extend([{"name": n, "library": library.name} for n in library.stats["names"]])
+        stats["names"].extend([{"name": n, "library": library.log_name} for n in library.stats["names"]])
     if playlist_stats:
         stats["created"] += playlist_stats["created"]
         stats["modified"] += playlist_stats["modified"]
@@ -1023,15 +1034,25 @@ def run_collection(config, library, metadata, requested_collections):
         logger.separator(f"Finished {mapping_name} Collection\nCollection Run Time: {str(datetime.now() - collection_start).split('.')[0]}")
         logger.remove_collection_handler(library.mapping_name, collection_log_name)
 
-def run_playlists(config):
+def run_playlists(config, secondary=False):
     stats = {"created": 0, "modified": 0, "deleted": 0, "added": 0, "unchanged": 0, "removed": 0, "radarr": 0, "sonarr": 0, "names": []}
     status = {}
     logger.info("")
-    logger.separator("Playlists")
+    logger.separator("Secondary Server Playlists" if secondary else "Playlists")
     logger.info("")
     for playlist_file in config.playlist_files:
-        for mapping_name, playlist_attrs in playlist_file.playlists.items():
+        for playlist_name, playlist_attrs in playlist_file.playlists.items():
             playlist_start = datetime.now()
+            mapping_name = playlist_name
+            if secondary:
+                if "libraries" in playlist_attrs and playlist_attrs["libraries"] \
+                        and any(str(pl_library) not in config.library_map for pl_library in util.get_list(playlist_attrs["libraries"])):
+                    logger.info(f"Skipping {playlist_name} Playlist: not all of its libraries are on the secondary server")
+                    continue
+                mapping_name = f"{playlist_name} (Secondary Server)"
+            if config.secondary_libraries:
+                # Each server pass gets its own copy so templates applied by one pass don't leak into the other
+                playlist_attrs = copy.deepcopy(playlist_attrs)
             if config.test_mode and ("test" not in playlist_attrs or playlist_attrs["test"] is not True):
                 no_template_test = True
                 if "template" in playlist_attrs and playlist_attrs["template"]:
@@ -1050,7 +1071,9 @@ def run_playlists(config):
             if "name_mapping" in playlist_attrs and playlist_attrs["name_mapping"]:
                 playlist_log_name, output_str = util.validate_filename(playlist_attrs["name_mapping"])
             else:
-                playlist_log_name, output_str = util.validate_filename(mapping_name)
+                playlist_log_name, output_str = util.validate_filename(playlist_name)
+            if secondary:
+                playlist_log_name = f"{playlist_log_name}-secondary"
             logger.add_playlist_handler(playlist_log_name)
             status[mapping_name] = {"status": "", "errors": [], "created": False, "modified": False, "deleted": False, "added": 0, "unchanged": 0, "removed": 0, "radarr": 0, "sonarr": 0}
             server_name = None
@@ -1064,7 +1087,7 @@ def run_playlists(config):
 
                 logger.separator(f"Validating {mapping_name} Attributes", space=False, border=False)
 
-                builder = CollectionBuilder(config, playlist_file, mapping_name, no_missing, playlist_attrs)
+                builder = CollectionBuilder(config, playlist_file, playlist_name, no_missing, playlist_attrs)
                 stats["names"].append(builder.name)
                 logger.info("")
 

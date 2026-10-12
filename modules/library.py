@@ -38,8 +38,15 @@ class Library(ABC):
         self.asset_depth = params["asset_depth"]
         self.asset_directory = params["asset_directory"] if params["asset_directory"] else []
         self.default_dir = params["default_dir"]
+        self.is_secondary = params["is_secondary"] if "is_secondary" in params else False
         self.mapping_name, output = util.validate_filename(self.original_mapping_name)
-        self.image_table_name = self.config.Cache.get_image_table_name(self.original_mapping_name) if self.config.Cache else None
+        # Rating keys differ between servers, so the secondary server gets its own logs and image cache
+        image_map_name = self.original_mapping_name
+        if self.is_secondary:
+            self.mapping_name = f"{self.mapping_name}-secondary"
+            image_map_name = f"{self.original_mapping_name} (secondary)"
+        self.log_name = f"{self.name} (Secondary Server)" if self.is_secondary else self.name
+        self.image_table_name = self.config.Cache.get_image_table_name(image_map_name) if self.config.Cache else None
         self.missing_path = params["missing_path"] if params["missing_path"] else os.path.join(self.default_dir, f"{self.mapping_name}_missing.yml")
         self.asset_folders = params["asset_folders"]
         self.create_asset_folders = params["create_asset_folders"]
@@ -244,7 +251,18 @@ class Library(ABC):
     def get_all(self, collection_level=None, load=False):
         pass
 
+    def overlay_folder(self, overlay_name):
+        overlay_folder = os.path.join(self.config.default_dir, "overlays", overlay_name)
+        if self.is_secondary:
+            # Original posters are backed up by rating key, which is different on the secondary server
+            overlay_folder = os.path.join(overlay_folder, "secondary")
+            os.makedirs(overlay_folder, exist_ok=True)
+        return overlay_folder
+
     def add_missing(self, collection, items, is_movie):
+        if self.is_secondary:
+            # The primary server already writes the shared missing file
+            return
         if collection not in self.missing:
             self.missing[collection] = {}
         section = "Movies Missing (TMDb IDs)" if is_movie else "Shows Missing (TVDb IDs)"

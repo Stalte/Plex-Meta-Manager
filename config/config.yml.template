@@ -66,6 +66,9 @@ plex:                                           # Can be individually specified 
   clean_bundles: false
   empty_trash: false
   optimize: false
+plex_secondary:                                 # Optional: a clone of the primary server (same libraries, names and file paths)
+  url: http://192.168.1.12:32401                # Every library is run against this server after the primary one
+  token: ####################                   # Defaults to the primary token if left out
 tmdb:                                           # REQUIRED for the script to run
   apikey: ################################
   language: en
