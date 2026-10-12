@@ -991,7 +991,7 @@ class MetadataFile(DataFile):
                 races = self.config.Ergast.get_races(f1_season, f1_language)
                 race_lookup = {r.round: r for r in races}
                 for season in item.seasons():
-                    if season.seasonNumber is 0:
+                    if season.seasonNumber == 0:
                         continue
                     sprint_weekend = False
                     for episode in season.episodes():

@@ -486,7 +486,7 @@ def library_operations(config, library):
 
             if library.remove_title_parentheses:
                 if not any([f.name == "title" and f.locked for f in item.fields]) and item.title.endswith(")"):
-                    new_title = re.sub(" \(\w+\)$", "", item.title)
+                    new_title = re.sub(r" \(\w+\)$", "", item.title)
                     item.editTitle(new_title)
                     batch_display += f"\n{item.title[:25]:<25} | Title | {new_title}"
 
