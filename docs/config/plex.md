@@ -28,6 +28,46 @@ plex:
 
 * If you need help finding your Plex authentication token, please see Plex's [support article](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/).
 
+# Secondary Plex Server
+
+This fork can keep a second Plex server in step with the first one. The first server (`plex`) is the primary and the second server (`plex_secondary`) is the secondary. Both are expected to be clones of each other: the same libraries with the same names, looking at the same files on the same paths.
+
+```yaml
+plex:
+  url: http://192.168.1.12:32400
+  token: ####################
+plex_secondary:
+  url: http://192.168.1.12:32401
+  token: ####################
+  timeout: 60
+```
+
+| Attribute       | Allowed Values                                                         |      Default       | Required |
+|:----------------|:-----------------------------------------------------------------------|:------------------:|:--------:|
+| `url`           | Secondary Plex Server URL                                              |        N/A         | &#9989;  |
+| `token`         | Secondary Plex Server Authentication Token                             |  primary `token`   | &#10060; |
+| `timeout`       | Secondary Plex Server Timeout                                          | primary `timeout`  | &#10060; |
+| `clean_bundles` | Runs Clean Bundles on the Secondary Server after the run               | primary value      | &#10060; |
+| `empty_trash`   | Runs Empty Trash on the Secondary Server after the run                 | primary value      | &#10060; |
+| `optimize`      | Runs Optimize on the Secondary Server after the run                    | primary value      | &#10060; |
+
+How it runs:
+
+* Every library is run against the primary server first, then the same library is run against the secondary server with the same metadata files, collections, overlays and library operations. Playlists are run on both servers too.
+* If the primary server can't be reached, the secondary server still runs.
+* Shared resources are only touched by the primary: Radarr and Sonarr adds and tags, `radarr_add_all_existing`, `sonarr_add_all_existing`, `*_remove_by_tag`, `metadata_backup` and the missing items file are skipped on the secondary so nothing happens twice.
+* Rating keys are different on each server, so the secondary gets its own image cache, its own overlay poster backups (in `overlays/<name>/secondary/`) and its own log folder (`logs/<library>-secondary/`). Tautulli results are matched to the secondary server by title and year.
+* A library can override the secondary connection with its own `plex_secondary` mapping, or skip the secondary server with `plex_secondary: false`.
+
+```yaml
+libraries:
+  Movies:
+    metadata_path:
+      - file: config/Movies.yml
+  4K Movies:
+    plex_secondary: false             # only exists on the primary server
+```
+
 # Other examples:
 
 Specifying a second Plex server for a specific library:

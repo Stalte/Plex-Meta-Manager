@@ -1,4 +1,4 @@
-import base64, os, requests
+import base64, copy, os, requests
 from datetime import datetime
 from lxml import html
 from modules import util, radarr, sonarr
@@ -168,6 +168,7 @@ class ConfigFile:
                     temp["changes"] = None if not changes else changes if len(changes) > 1 else changes[0]
                 new_config["webhooks"] = temp
             if "plex" in new_config:                        new_config["plex"] = new_config.pop("plex")
+            if "plex_secondary" in new_config:              new_config["plex_secondary"] = new_config.pop("plex_secondary")
             if "tmdb" in new_config:                        new_config["tmdb"] = new_config.pop("tmdb")
             if "tautulli" in new_config:                    new_config["tautulli"] = new_config.pop("tautulli")
             if "omdb" in new_config:                        new_config["omdb"] = new_config.pop("omdb")
@@ -362,7 +363,7 @@ class ConfigFile:
         self.Webhooks = Webhooks(self, self.webhooks, notifiarr=self.NotifiarrFactory)
         try:
             self.Webhooks.start_time_hooks(self.start_time)
-            if self.version[1] != self.latest_version[1] or (self.version[2] and self.version[2] < self.latest_version[2]):
+            if self.latest_version and (self.version[1] != self.latest_version[1] or (self.version[2] and self.version[2] < self.latest_version[2])):
                 self.Webhooks.version_hooks(self.version, self.latest_version)
         except Failed as e:
             logger.stacktrace()
@@ -596,7 +597,77 @@ class ConfigFile:
                 "apikey": check_for_attribute(self.data, "apikey", parent="tautulli", default_is_none=True)
             }
 
+            self.general["plex_secondary"] = None
+            if "plex_secondary" in self.data and self.data["plex_secondary"]:
+                logger.info("Secondary Plex Server Configured")
+                self.general["plex_secondary"] = {
+                    "url": check_for_attribute(self.data, "url", parent="plex_secondary", var_type="url", default_is_none=True, save=False),
+                    "token": check_for_attribute(self.data, "token", parent="plex_secondary", default=self.general["plex"]["token"], default_is_none=True, save=False),
+                    "timeout": check_for_attribute(self.data, "timeout", parent="plex_secondary", var_type="int", default=self.general["plex"]["timeout"], save=False),
+                    "clean_bundles": check_for_attribute(self.data, "clean_bundles", parent="plex_secondary", var_type="bool", default=self.general["plex"]["clean_bundles"], save=False),
+                    "empty_trash": check_for_attribute(self.data, "empty_trash", parent="plex_secondary", var_type="bool", default=self.general["plex"]["empty_trash"], save=False),
+                    "optimize": check_for_attribute(self.data, "optimize", parent="plex_secondary", var_type="bool", default=self.general["plex"]["optimize"], save=False)
+                }
+
+            def get_secondary_plex(lib):
+                # The secondary server is a clone of the primary (same libraries, names and file paths),
+                # so every library is mirrored to it unless the library sets plex_secondary: false.
+                if lib and "plex_secondary" in lib and lib["plex_secondary"] is False:
+                    return None
+                if not self.general["plex_secondary"] and not (lib and "plex_secondary" in lib and lib["plex_secondary"]):
+                    return None
+                defaults = self.general["plex_secondary"] or self.general["plex"]
+                secondary = {
+                    "url": check_for_attribute(lib, "url", parent="plex_secondary", var_type="url", default=self.general["plex_secondary"]["url"] if self.general["plex_secondary"] else None, req_default=True, save=False),
+                    "token": check_for_attribute(lib, "token", parent="plex_secondary", default=defaults["token"], req_default=True, save=False),
+                    "timeout": check_for_attribute(lib, "timeout", parent="plex_secondary", var_type="int", default=defaults["timeout"], save=False),
+                    "clean_bundles": check_for_attribute(lib, "clean_bundles", parent="plex_secondary", var_type="bool", default=defaults["clean_bundles"], save=False),
+                    "empty_trash": check_for_attribute(lib, "empty_trash", parent="plex_secondary", var_type="bool", default=defaults["empty_trash"], save=False),
+                    "optimize": check_for_attribute(lib, "optimize", parent="plex_secondary", var_type="bool", default=defaults["optimize"], save=False)
+                }
+                return secondary
+
+            def connect_secondary(lib, params, display_name, secondary_plex):
+                logger.info("")
+                logger.separator("Secondary Plex Configuration", space=False, border=False)
+                sec_params = copy.deepcopy({k: v for k, v in params.items() if k != "plex"})
+                sec_params["plex"] = secondary_plex
+                sec_params["is_secondary"] = True
+                # Shared resources are only touched by the primary server so they are not changed twice.
+                sec_params["metadata_backup"] = None
+                sec_params["radarr_add_all_existing"] = False
+                sec_params["sonarr_add_all_existing"] = False
+                sec_params["radarr_remove_by_tag"] = None
+                sec_params["sonarr_remove_by_tag"] = None
+                try:
+                    sec_library = Plex(self, sec_params)
+                    logger.info(f"{display_name} Secondary Library Connection Successful")
+                    sec_library.scan_metadata_files()
+                except Failed as e:
+                    self.errors.append(e)
+                    logger.stacktrace()
+                    logger.error(e)
+                    logger.info("")
+                    logger.info(f"{display_name} Secondary Library Connection Failed")
+                    return None
+
+                if self.general["tautulli"]["url"] or (lib and "tautulli" in lib):
+                    try:
+                        sec_library.Tautulli = Tautulli(self, sec_library, {
+                            "url": check_for_attribute(lib, "url", parent="tautulli", var_type="url", default=self.general["tautulli"]["url"], req_default=True, save=False),
+                            "apikey": check_for_attribute(lib, "apikey", parent="tautulli", default=self.general["tautulli"]["apikey"], req_default=True, save=False)
+                        })
+                    except Failed as e:
+                        self.errors.append(e)
+                        logger.stacktrace()
+                        logger.error(e)
+                    logger.info(f"{display_name} Secondary library's Tautulli Connection {'Failed' if sec_library.Tautulli is None else 'Successful'}")
+
+                sec_library.Webhooks = Webhooks(self, {"error_webhooks": sec_library.error_webhooks}, library=sec_library, notifiarr=self.NotifiarrFactory)
+                return sec_library
+
             self.libraries = []
+            self.secondary_libraries = []
             libs = check_for_attribute(self.data, "libraries", throw=True)
 
             current_time = datetime.now()
@@ -604,6 +675,7 @@ class ConfigFile:
             for library_name, lib in libs.items():
                 if self.requested_libraries and library_name not in self.requested_libraries:
                     continue
+                secondary_plex = None
                 params = {
                     "mapping_name": str(library_name),
                     "name": str(lib["library_name"]) if lib and "library_name" in lib and lib["library_name"] else str(library_name),
@@ -864,6 +936,11 @@ class ConfigFile:
                         "empty_trash": check_for_attribute(lib, "empty_trash", parent="plex", var_type="bool", default=self.general["plex"]["empty_trash"], save=False),
                         "optimize": check_for_attribute(lib, "optimize", parent="plex", var_type="bool", default=self.general["plex"]["optimize"], save=False)
                     }
+                    try:
+                        secondary_plex = get_secondary_plex(lib)
+                    except Failed as e:
+                        self.errors.append(e)
+                        logger.error(e)
                     library = Plex(self, params)
                     logger.info(f"{display_name} Library Connection Successful")
                 except Failed as e:
@@ -872,6 +949,11 @@ class ConfigFile:
                     logger.error(e)
                     logger.info("")
                     logger.info(f"{display_name} Library Connection Failed")
+                    # The secondary server is independent, so still run it when the primary is unreachable.
+                    if secondary_plex:
+                        sec_library = connect_secondary(lib, params, display_name, secondary_plex)
+                        if sec_library:
+                            self.secondary_libraries.append(sec_library)
                     continue
                 try:
                     logger.info("")
@@ -967,9 +1049,18 @@ class ConfigFile:
                 logger.info("")
                 self.libraries.append(library)
 
+                if secondary_plex:
+                    sec_library = connect_secondary(lib, params, display_name, secondary_plex)
+                    if sec_library:
+                        self.secondary_libraries.append(sec_library)
+                    logger.info("")
+
             logger.separator()
 
             self.library_map = {_l.original_mapping_name: _l for _l in self.libraries}
+            self.secondary_library_map = {_l.original_mapping_name: _l for _l in self.secondary_libraries}
+            # Primary libraries run first, then the secondary server gets the same treatment.
+            self.libraries.extend(self.secondary_libraries)
 
             if len(self.libraries) > 0:
                 logger.info(f"{len(self.libraries)} Plex Library Connection{'s' if len(self.libraries) > 1 else ''} Successful")

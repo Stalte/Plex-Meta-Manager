@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Plex-Meta-Manager</Name>
+  <Repository>ghcr.io/stalte/plex-meta-manager:latest</Repository>
+  <Registry>https://github.com/Stalte/Plex-Meta-Manager/pkgs/container/plex-meta-manager</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/Stalte/Plex-Meta-Manager/issues</Support>
+  <Project>https://github.com/Stalte/Plex-Meta-Manager</Project>
+  <Overview>Plex Meta Manager (fork) builds collections, playlists and metadata for Plex. This fork keeps a primary and a secondary Plex server in step: set plex for the primary server and plex_secondary for the secondary server in config.yml. Put config.yml in the config folder before starting the container.</Overview>
+  <Category>MediaServer:Video Tools:</Category>
+  <WebUI/>
+  <TemplateURL>https://raw.githubusercontent.com/Stalte/Plex-Meta-Manager/master/unraid/plex-meta-manager.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/Stalte/Plex-Meta-Manager/master/.github/pmm.png</Icon>
+  <ExtraParams>--restart=unless-stopped</ExtraParams>
+  <PostArgs/>
+  <CPUset/>
+  <Requires>A config.yml in the config folder. Start from config/config.yml.template in the repository.</Requires>
+  <Config Name="Config" Target="/config" Default="/mnt/user/appdata/plex-meta-manager" Mode="rw" Description="Holds config.yml, metadata files, the cache and logs." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/plex-meta-manager</Config>
+  <Config Name="Run Times" Target="PMM_TIME" Default="03:00" Mode="" Description="Comma-separated times of day to run, in HH:MM." Type="Variable" Display="always" Required="false" Mask="false">03:00</Config>
+  <Config Name="Run Immediately" Target="PMM_RUN" Default="False|True" Mode="" Description="True runs once at start-up and exits instead of waiting for the run times." Type="Variable" Display="always" Required="false" Mask="false">False</Config>
+  <Config Name="Libraries First" Target="PMM_LIBRARIES_FIRST" Default="False|True" Mode="" Description="True runs library operations before collections." Type="Variable" Display="advanced" Required="false" Mask="false">False</Config>
+  <Config Name="Read Only Config" Target="PMM_READ_ONLY_CONFIG" Default="False|True" Mode="" Description="True stops Plex Meta Manager from rewriting config.yml." Type="Variable" Display="advanced" Required="false" Mask="false">False</Config>
+  <Config Name="No Countdown" Target="PMM_NO_COUNTDOWN" Default="False|True" Mode="" Description="True hides the countdown to the next run in the log." Type="Variable" Display="advanced" Required="false" Mask="false">False</Config>
+</Container>

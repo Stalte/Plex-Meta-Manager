@@ -11,6 +11,26 @@
 [![Read the Docs](https://img.shields.io/readthedocs/plex-meta-manager?style=plastic)](https://metamanager.wiki)
 [![Sponsor or Donate](https://img.shields.io/badge/-Sponsor_or_Donate-blueviolet?style=plastic)](https://github.com/sponsors/meisnate12)
 
+## About this fork
+
+This fork adds two things on top of Plex Meta Manager:
+
+* **A secondary Plex server.** Set `plex` for the primary server and `plex_secondary` for a clone of it (same libraries, names and file paths). Every library, collection, metadata file, operation and playlist runs on the primary first and then on the secondary. Radarr/Sonarr adds, metadata backups and the missing file only happen on the primary. See [docs/config/plex.md](docs/config/plex.md#secondary-plex-server).
+* **A Docker image on GHCR.** Every push to `master` publishes `ghcr.io/stalte/plex-meta-manager:latest` (plus a version tag from `VERSION` and a `sha-` tag).
+
+### Installing on Unraid
+
+1. Open the Unraid terminal and add the template:
+   ```bash
+   wget -O /boot/config/plugins/dockerMan/templates-user/my-Plex-Meta-Manager.xml \
+     https://raw.githubusercontent.com/Stalte/Plex-Meta-Manager/master/unraid/plex-meta-manager.xml
+   ```
+2. Put your `config.yml` in `/mnt/user/appdata/plex-meta-manager` (start from [config/config.yml.template](config/config.yml.template)).
+3. In the **Docker** tab click **Add Container**, pick **Plex-Meta-Manager** from the template list and click **Apply**.
+
+Without the template, add a container by hand with repository `ghcr.io/stalte/plex-meta-manager:latest` and map `/config` to your appdata folder.
+
+
 Plex Meta Manager is an open source Python 3 project that has been designed to ease the creation and maintenance of metadata, collections, and playlists within a Plex Media Server. The script is designed to be run continuously and be able to update information based on sources outside your plex environment. Plex Meta Manager supports Movie/TV/Music libraries and Playlists.
 
 ## Getting Started

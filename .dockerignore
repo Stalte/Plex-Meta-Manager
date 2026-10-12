@@ -16,4 +16,4 @@ config
 Dockerfile
 venv
 .idea
-test.py
+test.pyunraid

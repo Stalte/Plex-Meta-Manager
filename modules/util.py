@@ -93,7 +93,7 @@ def add_zero(number):
     return str(number) if len(str(number)) > 1 else f"0{number}"
 
 def current_version(develop=False):
-    url = f"https://raw.githubusercontent.com/meisnate12/Plex-Meta-Manager/{'develop' if develop else 'master'}/VERSION"
+    url = f"https://raw.githubusercontent.com/Stalte/Plex-Meta-Manager/{'develop' if develop else 'master'}/VERSION"
     try:
         return parse_version(requests.get(url).content.decode().strip())
     except requests.exceptions.ConnectionError:

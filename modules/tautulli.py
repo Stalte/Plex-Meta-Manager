@@ -45,6 +45,9 @@ class Tautulli:
                 if int(item[stat_type]) < params['list_minimum']:
                     continue
                 try:
+                    # Tautulli's rating keys belong to the server it watches, so the secondary server matches by title
+                    if library.is_secondary:
+                        raise NotFound
                     plex_item = library.fetchItem(int(item["rating_key"]))
                     if not isinstance(plex_item, (Movie, Show)):
                         raise BadRequest

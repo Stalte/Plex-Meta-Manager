@@ -2241,8 +2241,8 @@ class CollectionBuilder:
                             self.library.edit_tags("label", item, add_tags=[f"{overlay_name} Overlay"])
                     self.config.Cache.update_remove_overlay(self.library.image_table_name, overlay_name)
             rating_keys = [int(item.ratingKey) for item in self.library.get_labeled_items(f"{overlay_name} Overlay")]
-            overlay_folder = os.path.join(self.config.default_dir, "overlays", overlay_name)
-            overlay_image = Image.open(os.path.join(overlay_folder, "overlay.png")).convert("RGBA")
+            overlay_folder = self.library.overlay_folder(overlay_name)
+            overlay_image = Image.open(os.path.join(self.config.default_dir, "overlays", overlay_name, "overlay.png")).convert("RGBA")
             overlay = (overlay_name, overlay_folder, overlay_image)
 
         revert = "revert_overlay" in self.item_details
