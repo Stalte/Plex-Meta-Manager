@@ -1238,6 +1238,8 @@ try:
                     raise Failed(f"Argument Error: blank time argument")
         for time_to_run in valid_times:
             schedule.every().day.at(time_to_run).do(start, {"config_file": config_file, "time": time_to_run, "delete": delete, "library_first": library_first, "trace": trace})
+        logger.info(f"Plex Meta Manager is running and waiting for its scheduled run times: {', '.join(valid_times)}")
+        logger.info("Logs are written to the logs folder once a run starts")
         while True:
             schedule.run_pending()
             if not no_countdown:
