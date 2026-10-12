@@ -1,5 +1,6 @@
 FROM python:3.9-slim
 ENV TINI_VERSION v0.19.0
+ENV PYTHONUNBUFFERED=1
 COPY . /
 RUN echo "**** install system packages ****" \
  && apt-get update \
